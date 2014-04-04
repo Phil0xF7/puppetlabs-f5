@@ -20,7 +20,8 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
     instances = []
     response = transport[wsdl].call(:get_list)
     if response.body[:get_list_response][:return][:item]
-      response.body[:get_list_response][:return][:item].collect do |name|
+      # Force to array to account for only one virtualserver.
+      Array(response.body[:get_list_response][:return][:item]).each do |name|
         instances << new(:name => name)
       end
     end
@@ -56,6 +57,21 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
     end
   end
 
+  def enabled_state=(value)
+    message = { virtual_servers: { item: resource[:name] }, states: { item: value }}
+    transport[wsdl].call(:set_enabled_state, message: message)
+  end
+
+  def cmp_enabled_state=(value)
+    message = { virtual_servers: { item: resource[:name] }, states: value}
+    transport[wsdl].call(:set_cmp_enabled_state, message: message)
+  end
+
+  def connection_mirror_state=(value)
+    message = { virtual_servers: { item: resource[:name] }, states: value}
+    transport[wsdl].call(:set_connection_mirror_state, message: message)
+  end
+
   def snat_pool
     message = { virtual_servers: { item: resource[:name] }}
     response = transport[wsdl].call(:get_snat_pool, message: message)
@@ -77,7 +93,9 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
       end
     end
 
-    if @priority != [nil]
+    if @priority == [nil]
+      return 0
+    else
       list = @priority.sort
       list.each_with_index do |val, i|
         if val > i
@@ -87,16 +105,16 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
       end
       @priority << list.size
       return list.size
-    else
-      nil
     end
   end
 
   def clone_pool
     pool = {}
     message = { virtual_servers: { item: resource[:name] }}
-    transport[wsdl].call(:get_clone_pool, message).body[:get_clone_pool_response][:return][:item].each do |p|
-      pool[p[:pool_name]] = p[:type]
+    transport[wsdl].call(:get_clone_pool, message: message).body[:get_clone_pool_response][:return][:item].each do |p|
+      if p.is_a?(Hash)
+        pool[p[:pool_name]] = p[:type]
+      end
     end
     pool
   end
@@ -129,8 +147,10 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
   def persistence_profile
     profiles = {}
     message = { virtual_servers: { item: resource[:name] }}
-    transport[wsdl].call(:get_persistence_profile, message).body[:get_persistence_profile_response][:return][:item].each do |p|
-      profiles[p[:profile_name]] = p[:default_profile]
+    transport[wsdl].call(:get_persistence_profile, message: message).body[:get_persistence_profile_response][:return][:item].each do |p|
+      if p.is_a?(Hash)
+        profiles[p[:profile_name]] = p[:default_profile]
+      end
     end
     profiles
   end
@@ -172,8 +192,7 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
     # This is fairly torturous but we're getting back a hash of arrays that
     # then point to hashs and sometimes they don't contain hashes but actually
     # just the trail of the body.  I hate SOAP and I hate XML.
-    response.body[:get_profile_response][:return][:item].each do |list|
-      hash = list.last
+    response.body[:get_profile_response][:return][:item][:item].each do |hash|
       if hash.is_a?(Hash)
         profiles[hash[:profile_name]] = hash[:profile_context]
       end
@@ -200,8 +219,8 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
       end
     end
 
-    remove = { virtual_servers: { item: resource[:name] }, clone_pools: { item: [to_remove]}}
-    add = { virtual_servers: { item: resource[:name] }, clone_pools: { item: [to_add]}}
+    remove = { virtual_servers: { item: resource[:name] }, profiles: { item: [to_remove]}}
+    add = { virtual_servers: { item: resource[:name] }, profiles: { item: [to_add]}}
     transport[wsdl].call(:remove_profile, message: remove) unless to_remove.empty?
     transport[wsdl].call(:add_profile, message: add) unless to_add.empty?
   end
@@ -312,6 +331,8 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
       transport[wsdl].call(:set_snat_none, message: message)
     when 'SNAT_TYPE_SNATPOOL'
       message = { virtual_servers: { item: resource[:name] }, snatpools: {item: resource[:snat_pool]}}
+      require 'pry'
+      binding.pry
       transport[wsdl].call(:set_snat_pool, message: message)
     when 'SNAT_TYPE_TRANSLATION_ADDRESS'
       Puppet.warning("Puppet::Provider::F5_VirtualServer: currently F5 API does not appear to support a way to set SNAT_TYPE_TRANSLATION_ADDRESS.")
