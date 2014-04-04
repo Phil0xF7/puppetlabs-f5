@@ -2,6 +2,23 @@
 require 'openssl'
 require 'savon'
 
+module Savon
+  class Client
+    def get(call, message=nil)
+      if message
+        response = self.call(call, message: message).body["#{call}_response".to_sym][:return][:item]
+      else
+        response = self.call(call).body["#{call}_response".to_sym][:return][:item]
+      end
+      return response if response.is_a?(String)
+      if response.is_a?(Hash)
+        return response[:item]
+      end
+      return {}
+    end
+  end
+end
+
 module Puppet::Util::NetworkDevice::F5
   class Transport
     attr_reader :hostname, :username, :password, :directory
