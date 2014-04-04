@@ -346,7 +346,7 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
   end
 
   def vlan=(value)
-    message = { virtual_servers: { item: resource[:name] }, vlans: { item: [resource[:vlan]] }}
+    message = { virtual_servers: { item: resource[:name] }, vlans: { item: { state: resource[:vlan]['state'], vlans: { item: resource[:vlan]['vlans'] }}}}
     transport[wsdl].call(:set_vlan, message: message)
   end
 
