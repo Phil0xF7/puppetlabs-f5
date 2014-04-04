@@ -94,7 +94,7 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
     end
 
     if @priority == [nil]
-      return 0
+      @priority = [0]
     else
       list = @priority.sort
       list.each_with_index do |val, i|
@@ -331,8 +331,6 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
       transport[wsdl].call(:set_snat_none, message: message)
     when 'SNAT_TYPE_SNATPOOL'
       message = { virtual_servers: { item: resource[:name] }, snatpools: {item: resource[:snat_pool]}}
-      require 'pry'
-      binding.pry
       transport[wsdl].call(:set_snat_pool, message: message)
     when 'SNAT_TYPE_TRANSLATION_ADDRESS'
       Puppet.warning("Puppet::Provider::F5_VirtualServer: currently F5 API does not appear to support a way to set SNAT_TYPE_TRANSLATION_ADDRESS.")
