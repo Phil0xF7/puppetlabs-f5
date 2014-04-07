@@ -228,11 +228,10 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
   def rule
     # Because rule changes are not atomic, we are ignoring priority.
     message = { virtual_servers: { item: resource[:name] }}
-    transport[wsdl].call(:get_rule, message: message).body[:get_rule_response][:return][:item].collect do |item|
-      if item.is_a?(Hash)
-        if item.has_key?(:rule_name)
-          item[:rule_name]
-        end
+    response = transport[wsdl].call(:get_rule, message: message)
+    if response.body[:get_rule_response][:return][:item][:item]
+      response.body[:get_rule_response][:return][:item][:item].collect do |rule|
+        rule[:rule_name]
       end
     end
   end
@@ -340,7 +339,7 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
   def vlan
     message = { virtual_servers: { item: resource[:name] }}
     val = transport[wsdl].call(:get_vlan, message: message).body[:get_vlan_response][:return][:item]
-    { 'state' => val[:state], 'vlans' => val[:vlans] }
+    { 'state' => val[:state], 'vlans' => val[:vlans][:item] }
   end
 
   def vlan=(value)
