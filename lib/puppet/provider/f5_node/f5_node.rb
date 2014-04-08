@@ -7,7 +7,7 @@ Puppet::Type.type(:f5_node).provide(:f5_node, :parent => Puppet::Provider::F5) d
   defaultfor :feature => :posix
 
   def self.wsdl
-    'LocalLB.NodeAddress'
+    'LocalLB.NodeAddressV2'
   end
 
   def wsdl
@@ -15,39 +15,60 @@ Puppet::Type.type(:f5_node).provide(:f5_node, :parent => Puppet::Provider::F5) d
   end
 
   def self.instances
-    transport[wsdl].get_list.collect do |name|
-      new(:name => name)
+    Puppet.debug("Puppet::Provider::F5_Node: instances")
+    transport[wsdl].call(:get_list).body[:get_list_response][:return][:item].collect do |item|
+      new(:name   => item,
+          :ensure => :present
+         )
     end
   end
 
-  methods = [ 'dynamic_ratio',
-    'ratio',
-    'screen_name',
-    'session_enabled_state']
-
-  methods.each do |method|
-    define_method(method.to_sym) do
-      if transport[wsdl].respond_to?("get_#{method}".to_sym)
-        transport[wsdl].send("get_#{method}", resource[:name]).first.to_s
-      end
-    end
+  def dynamic_ratio
+    message = { nodes: { item: resource[:name]}}
+    transport[wsdl].call(:get_dynamic_ratio, message: message).body[:get_dynamic_ratio_response][:return][:item]
   end
 
-  methods.each do |method|
-    define_method("#{method}=") do |value|
-      if transport[wsdl].respond_to?("set_#{method}".to_sym)
-        transport[wsdl].send("set_#{method}", resource[:name], resource[method.to_sym])
-      end
-    end
+  def dynamic_ratio=(value)
+    message = { nodes: { item: resource[:name] }, dynamic_ratios: { item: resource[:dynamic_ratio] } }
+    transport[wsdl].call(:set_dynamic_ratio, message: message)
+  end
+
+  def ratio
+    message = { nodes: { item: resource[:name]}}
+    transport[wsdl].call(:get_ratio, message: message).body[:get_ratio_response][:return][:item]
+  end
+
+  def ratio=(value)
+    message = { nodes: { item: resource[:name] }, ratios: { item: resource[:ratio] } }
+    transport[wsdl].call(:set_ratio, message: message)
   end
 
   def connection_limit
-    val = transport[wsdl].get_connection_limit(resource[:name]).first
-    to_64s(val)
+    message = { nodes: { item: resource[:name]}}
+    transport[wsdl].call(:get_connection_limit, message: message).body[:get_connection_limit_response][:return][:item]
   end
 
   def connection_limit=(value)
-    transport[wsdl].set_connection_limit(resource[:name], [ to_32h(resource[:connection_limit]) ])
+    message = { nodes: { item: resource[:name]}, limits: { item: resource[:connection_limit]}}
+    transport[wsdl].call(:set_connection_limit, message: message)
+  end
+
+  def session_enabled_state 
+    message = { nodes: { item: resource[:name]}}
+    value = transport[wsdl].call(:get_session_status, message: message).body[:get_session_status_response][:return][:item]
+    case
+    when value.match(/DISABLED$/)
+      'STATE_DISABLED'
+    when value.match(/ENABLED$/)
+      'STATE_ENABLED'
+    else
+      nil
+    end
+  end
+
+  def session_enabled_state=(value)
+    message = { nodes: { item: resource[:name]}, states: { item: resource[:session_enabled_state]}}
+    transport[wsdl].call(:set_session_enabled_state, message: message)
   end
 
   def monitor_association
@@ -57,12 +78,16 @@ Puppet::Type.type(:f5_node).provide(:f5_node, :parent => Puppet::Provider::F5) d
   def create
     Puppet.debug("Puppet::Provider::F5_Node: creating F5 node #{resource[:name]}")
     # The F5 API isn't consistent, it accepts long instead of ULong64 so we set connection limits later.
-    transport[wsdl].create(resource[:name], [0])
+    message = { 
+      nodes: { item: resource[:name] },
+      addresses: { item: resource[:addresses] },
+      limits: { item: resource[:connection_limit] }
+    }
+    transport[wsdl].call(:create, message: message)
 
     methods = [ 'connection_limit',
       'dynamic_ratio',
       'ratio',
-      'screen_name',
       'session_enabled_state' ]
 
     methods.each do |method|
@@ -72,10 +97,13 @@ Puppet::Type.type(:f5_node).provide(:f5_node, :parent => Puppet::Provider::F5) d
 
   def destroy
     Puppet.debug("Puppet::Provider::F5_Pool: destroying F5 node #{resource[:name]}")
-    transport[wsdl].delete_node_address(resource[:name])
+    transport[wsdl].call(:delete_node_address, message: { nodes: { item: resource[:name]}})
   end
 
   def exists?
-    transport[wsdl].get_list.include?(resource[:name])
+    response = transport[wsdl].call(:get_list)
+    if response.body[:get_list_response][:return][:item]
+      response.body[:get_list_response][:return][:item].include?(resource[:name])
+    end
   end
 end

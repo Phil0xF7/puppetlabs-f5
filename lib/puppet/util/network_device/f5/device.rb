@@ -13,7 +13,7 @@ class Puppet::Util::NetworkDevice::F5::Device
     modules = [
       'LocalLB.Class',
       'LocalLB.Monitor',
-      'LocalLB.NodeAddress',
+      'LocalLB.NodeAddressV2',
       'LocalLB.ProfileClientSSL',
       'LocalLB.ProfilePersistence',
       'LocalLB.Pool',
