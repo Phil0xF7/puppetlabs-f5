@@ -12,7 +12,11 @@ module Savon
       end
       return response if response.is_a?(String)
       if response.is_a?(Hash)
-        return response[:item]
+        if response[:item]
+          return response[:item]
+        else
+          return response
+        end
       end
       return {}
     end
