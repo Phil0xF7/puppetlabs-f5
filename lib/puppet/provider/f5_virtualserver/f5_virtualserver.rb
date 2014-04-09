@@ -188,11 +188,9 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
   def profile
     profiles = {}
     message = { virtual_servers: { item: resource[:name] }}
-    response = transport[wsdl].call(:get_profile, message: message)
-    # This is fairly torturous but we're getting back a hash of arrays that
-    # then point to hashs and sometimes they don't contain hashes but actually
-    # just the trail of the body.  I hate SOAP and I hate XML.
-    response.body[:get_profile_response][:return][:item][:item].each do |hash|
+    response = transport[wsdl].call(:get_profile, message: message).body[:get_profile_response][:return][:item][:item]
+    # This is ugly but we can get back a hash 
+    Array(response).each do |hash|
       if hash.is_a?(Hash)
         profiles[hash[:profile_name]] = hash[:profile_context]
       end
@@ -222,6 +220,8 @@ Puppet::Type.type(:f5_virtualserver).provide(:f5_virtualserver, :parent => Puppe
     remove = { virtual_servers: { item: resource[:name] }, profiles: { item: [to_remove]}}
     add = { virtual_servers: { item: resource[:name] }, profiles: { item: [to_add]}}
     transport[wsdl].call(:remove_profile, message: remove) unless to_remove.empty?
+    require 'pry'
+    binding.pry
     transport[wsdl].call(:add_profile, message: add) unless to_add.empty?
   end
 

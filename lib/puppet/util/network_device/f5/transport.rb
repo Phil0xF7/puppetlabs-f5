@@ -10,7 +10,7 @@ module Savon
       else
         response = self.call(call).body["#{call}_response".to_sym][:return][:item]
       end
-      return response if response.is_a?(String)
+      return response if response.is_a?(String) or response.is_a?(Array)
       if response.is_a?(Hash)
         if response[:item]
           return response[:item]
