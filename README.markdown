@@ -255,9 +255,9 @@ See [F5 documentation](http://support.f5.com/kb/en-us/products/big-ip_ltm/manual
     f5_snat { 'nat':
       ensure                  => 'present',
       connection_mirror_state => 'STATE_DISABLED',
-      original_address        => ['0.0.0.0', '0.0.0.0'],
+      original_address        => { original_address => '0.0.0.0', wildmask => '0.0.0.0'},
       source_port_behavior    => 'SOURCE_PORT_PRESERVE',
-      translation_target      => ['SNAT_TYPE_TRANSLATION_ADDRESS', '10.10.10.10'],
+      translation_target      => { type => 'SNAT_TYPE_TRANSLATION_ADDRESS', translation_object => '10.10.10.10'},
       vlan                    => { 'state' => 'STATE_DISABLED',
                                    'vlans' => ['default'] },
     }
@@ -279,6 +279,8 @@ See [F5 documentation](http://support.f5.com/kb/en-us/products/big-ip_ltm/manual
     }
 
 F5_virtualserver does not atomically change rules (F5 API limitation), so to reorder rule priority please use irule priority which can be modified in f5_rule. See [F5 documentation](http://devcentral.f5.com/wiki/iRules.priority.ashx).
+
+NOTE: Currently requires VLANs to be made manually.
 
     f5_virtualserver { 'www':
       ensure                  => 'present',
