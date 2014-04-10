@@ -20,7 +20,7 @@ Puppet::Type.type(:f5_monitor).provide(:f5_monitor, :parent => Puppet::Provider:
     f5monitors = Array.new
     monitor = Hash.new
 
-    transport[wsdl].call(:get_template_list).body[:get_template_list_response][:return][:item].collect do |monitor_template|
+    transport[wsdl].get(:get_template_list).collect do |monitor_template|
       monitor = { :name => monitor_template[:template_name],
                   :ensure => :present,
                   :type => monitor_template[:template_type] }
@@ -37,30 +37,28 @@ Puppet::Type.type(:f5_monitor).provide(:f5_monitor, :parent => Puppet::Provider:
     end
   end
 
-  def flush
-    @property_hash[:name] ||= resource[:name]
-  end
+  #def flush
+  #  @property_hash[:name] ||= resource[:name]
+  #end
 
-  methods = [
-    'manual_resume_state',
-    'parent_template',
-    'template_state',
-    'template_transparent_mode',
-    'template_user_defined_string_property'
-  ]
-
-  methods.each do |method|
+  {
+    'manual_resume_state'                   => 'states',
+    'template_state'                        => 'states',
+    'template_transparent_mode'             => 'transparent_modes',
+    'template_user_defined_string_property' => 'values'
+  }.each do |method, name|
     define_method(method.to_sym) do
       call = "get_#{method}".to_sym
-      transport[wsdl].call(call, message: { template_names: @property_hash[:name]}).body["get_#{method}_response".to_sym][:return]
+      transport[wsdl].get(call, { template_names: { items: @property_hash[:name]}})
     end
-
     define_method("#{method}=") do |value|
-      # Without this it appears to skip resources attributes on creation.
-     # namevar = @property_hash[:name] || resource[:name]
-      raise Puppet::Error, "Puppet::Provider::F5_monitor: missing namevar for resource" unless namevar
-      transport[wsdl].call("set_#{method}".to_sym, message: { template_names: { item: value}})
+      transport[wsdl].call("set_#{method}".to_sym, 'message' => { template_names: { 'items' => @property_hash[:name]}, name => { 'items' => value }})
     end
+  end
+
+  # Lacks a set API, so we just define this seperately to the other properties above.
+  def parent_template
+    transport[wsdl].get(:get_parent_template, { template_names: @property_hash[:name]})
   end
 
   def monitor_ipport(value)
@@ -76,7 +74,7 @@ Puppet::Type.type(:f5_monitor).provide(:f5_monitor, :parent => Puppet::Provider:
   end
 
   def template_destination
-    destination = transport[wsdl].call(:get_template_destination, message: { template_names: { item: resource[:name]}}).body[:get_template_destination_response][:return][:item]
+    destination = transport[wsdl].get(:get_template_destination, { template_names: { items: resource[:name]}})
     # need F5 eng review: http://devcentral.f5.com/wiki/iControl.LocalLB__AddressType.ashx
     case destination[:address_type]
     when 'ATYPE_STAR_ADDRESS_STAR_PORT'
@@ -95,7 +93,7 @@ Puppet::Type.type(:f5_monitor).provide(:f5_monitor, :parent => Puppet::Provider:
   end
 
   def template_destination=(value)
-    message = { template_names: { item: resource[:name]}, destinations: monitor_ipport(resource[:template_destination])}
+    message = { template_names: { items: resource[:name]}, destinations: monitor_ipport(resource[:template_destination])}
     transport[wsdl].call(:set_template_destination, message: message)
   end
 
@@ -112,8 +110,9 @@ Puppet::Type.type(:f5_monitor).provide(:f5_monitor, :parent => Puppet::Provider:
 
     template_integer = {}
     properties.each do |property|
-      message = { template_names: { item: @property_hash[:name] }, property_types: { item: property }}
-      template_integer[property] = transport[wsdl].call(:get_template_integer_property, message: message).body[:get_template_integer_property_response][:return][:item]
+      message = { template_names: { items: @property_hash[:name] }, property_types: { items: property }}
+      response = transport[wsdl].get(:get_template_integer_property, message)
+      template_integer[property] = response[:value]
     end
     template_integer
   end
@@ -121,13 +120,15 @@ Puppet::Type.type(:f5_monitor).provide(:f5_monitor, :parent => Puppet::Provider:
   def template_integer_property=(value)
     resource[:template_integer_property].each do |k, v|
       # Trying to configure ITYPE_UNSET results in Exception: Common::OperationFailed
-      message = { template_names: { item: resource[:name] }, values: { item: [{:type => k, :value => v}]}}
+      message = { template_names: { items: resource[:name] }, values: { items: [{:type => k, :value => v}]}}
       transport[wsdl].call(:set_template_integer_property, message: message) unless k == 'ITYPE_UNSET'
     end
   end
 
   def template_string_property
-    properties = [
+    template_string = {}
+
+    [
       'STYPE_UNSET',
       'STYPE_SEND',
       'STYPE_GET',
@@ -221,29 +222,33 @@ Puppet::Type.type(:f5_monitor).provide(:f5_monitor, :parent => Puppet::Provider:
       'STYPE_RUN_V2',
       'STYPE_CLIENT_CERTIFICATE_V2',
       'STYPE_CLIENT_KEY_V2',
-    ]
-
-    names = []
-    properties.each do |property|
-      names << @property_hash[:name]
+    ].each do |property|
+      # STYPE_UNSET makes 11.5 crash.  I don't know why.
+      next if property == 'STYPE_UNSET'
+      message = { template_names: { items: @property_hash[:name] }, property_types: { items: property }}
+      # We need to not fail on properties that are missing.
+      begin
+        response = transport[wsdl].get(:get_template_string_property, message)
+        # Seriously, some of them come back as broken arrays.
+        template_string[property] = response[:value] if response[:value].is_a?(String)
+      rescue
+        Puppet.debug("Fetching template_string_property for #{property} failed.")
+      end
     end
-
-    template_string = {}
-    message = { template_names: { item: @property_hash[:name] }, property_types: { item: properties }}
-    template_string = transport[wsdl].call(:get_template_string_property, message: message).body[:get_template_string_property_response][:return][:item]
     template_string
+
   end
 
   def template_string_property=(value)
     resource[:template_string_property].each do |k, v|
-      message = { template_names: { item: resource[:name] }, property_types: { item: [{:type => k, :value => v}] }}
+      message = { template_names: { item: resource[:name] }, values: { item: [{:type => k, :value => v}] }}
       transport[wsdl].call(:set_template_string_property, message: message)
     end
   end
 
   def template_type
     message = { template_names: { item: @property_hash[:name]}}
-    transport[wsdl].call(:get_template_type, message: message).body[:get_template_type_response][:return][:item]
+    transport[wsdl].get(:get_template_type, message)
   end
 
   def template_type=(value)
