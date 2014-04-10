@@ -21,32 +21,33 @@ Puppet::Type.type(:f5_snattranslationaddress).provide(:f5_snattranslationaddress
   end
 
   methods = {
-    'arp_state'     => 'states',
-    'enabled_state' => 'states',
-    'ip_timeout'    => 'timeouts',
-    'tcp_timeout'   => 'timeouts',
-    'udp_timeout'   => 'timeouts'
+    'arp_state'         => 'states',
+    'connection_limit'  => 'limits',
+    'enabled_state'     => 'states',
+    'ip_timeout'        => 'timeouts',
+    'tcp_timeout'       => 'timeouts',
+    'udp_timeout'       => 'timeouts'
   }
 
   methods.each do |method, arg|
     define_method(method.to_sym) do
-      transport[wsdl].get("get_#{method}".to_sym, { translation_addresses: { item: resource[:name] }})
+      transport[wsdl].get("get_#{method}".to_sym, { translation_addresses: { item: resource[:name] } })
     end
     define_method("#{method}=") do |value|
-      message = { translation_addresses: { item: resource[:name] }, arg => { item: resource[method.to_sym] }}
+      message = { translation_addresses: { item: resource[:name] }, arg => { item: resource[method.to_sym] } }
       transport[wsdl].call("set_#{method}".to_sym, message: message)
     end
   end
 
-  def connection_limit
-    message = { translation_addresses: { item: resource[:name] } }
-    transport[wsdl].get(:get_connection_limit, message)
-  end
+# def connection_limit
+#   message = { translation_addresses: { item: resource[:name] } }
+#   transport[wsdl].get(:get_connection_limit, message)
+# end
 
-  def connection_limit=(value)
-    message = { translation_addresses: { item: resource[:name] }, limits: { item: value } }
-    transport[wsdl].call(:set_connection_limit, message: message)
-  end
+# def connection_limit=(value)
+#   message = { translation_addresses: { item: resource[:name] }, limits: { item: value } }
+#   transport[wsdl].call(:set_connection_limit, message: message)
+# end
 
   def create
     Puppet.debug("Puppet::Provider::F5_SNATTranslationAddress: creating F5 snattranslationaddress #{resource[:name]}")
