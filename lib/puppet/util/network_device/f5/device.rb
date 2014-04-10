@@ -21,7 +21,7 @@ class Puppet::Util::NetworkDevice::F5::Device
       'LocalLB.Rule',
       'LocalLB.SNAT',
       'LocalLB.SNATPool',
-      'LocalLB.SNATTranslationAddress',
+      'LocalLB.SNATTranslationAddressV2',
       'LocalLB.VirtualServer',
       'Management.KeyCertificate',
       'Management.Partition',
