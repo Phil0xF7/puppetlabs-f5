@@ -21,11 +21,11 @@ Puppet::Type.type(:f5_snattranslationaddress).provide(:f5_snattranslationaddress
   end
 
   methods = {
-    'arp_state' => 'states',
+    'arp_state'     => 'states',
     'enabled_state' => 'states',
-    'ip_timeout' => 'timeouts',
-    'tcp_timeout' => 'timeouts',
-    'udp_timeout' => 'timeouts'
+    'ip_timeout'    => 'timeouts',
+    'tcp_timeout'   => 'timeouts',
+    'udp_timeout'   => 'timeouts'
   }
 
   methods.each do |method, arg|
