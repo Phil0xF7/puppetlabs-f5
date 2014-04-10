@@ -22,6 +22,10 @@ Puppet::Type.newtype(:f5_snattranslationaddress) do
     desc "The snat translation address name."
   end
 
+  newparam(:addresses) do
+    desc "The IP addresses of the specified SNAT translation address"
+  end
+
   newproperty(:arp_state) do
     desc "The ARP states for the specified tranlation SNAT address."
 
@@ -59,9 +63,9 @@ Puppet::Type.newtype(:f5_snattranslationaddress) do
     newvalues(/^\d+$/)
   end
 
-  newproperty(:unit_id) do
-    desc "The unit IDs for the specified tranlation SNAT address."
+# newproperty(:unit_id) do
+#   desc "The unit IDs for the specified tranlation SNAT address."
 
-    newvalues(/^\d+$/)
-  end
+#   newvalues(/^\d+$/)
+# end
 end
